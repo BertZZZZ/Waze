@@ -15,14 +15,21 @@
 // @icon
 // @require https://greasyfork.org/scripts/16071-wme-keyboard-shortcuts/code/WME%20Keyboard%20Shortcuts.js
 // ==/UserScript==
+// Some code reused from MapOMatic, GertBroos. Thanks Glodenox for the tip.
 /* Changelog
+Drawing a lot of streets in not yet developed Waze countries?  Then save some time an energy by drawing empty streets i.o. unnamed streets.
+Using shortcut 'k' io 'i' will draw a segment with emptyStreet and emptyCity checkbox set.
+Alternatively, when 1 segement is unnamed, a button (or shortcut 'u') will empty the street and city checkboxes
 
+This is the very first version.
+Only works in english (due to english only helperscripts)
+Only tested in Chrome
 */
 
-// at require  https://greasyfork.org/scripts/24851-wazewrap/code/WazeWrap.js
 
 var VERSION = '0.0.2';
 var shortcutEmptyStreet = "u"; // to move to a config panel, once...
+var shortcutDrawAndEmptyStreet = "k"; // to move to a config panel, once...
 var selectedItems;
 var UpdateObject,
     AddOrGetCity,
@@ -44,7 +51,8 @@ function WMEEmptyStreet_bootstrap() {
         setTimeout(WMEEmptyStreet_bootstrap, 1000);
         return;
     }
-    /* from bestpractice advice on https://wiki.waze.com/wiki/Scripts/WME_JavaScript_development
+
+// from bestpractice advice on https://wiki.waze.com/wiki/Scripts/WME_JavaScript_development
   var bGreasemonkeyServiceDefined = false;
 
   try {
@@ -61,11 +69,8 @@ function WMEEmptyStreet_bootstrap() {
       return dummyElem.onclick();
     })();
   }
- */
-    // own code here
+  // own code here
 
-    //    log("Start initialisation for:"+WazeWrap.User.Username());
-    //not sure how require works but we need the Action
     if (typeof(require) !== "undefined") {
         UpdateObject = require("Waze/Action/UpdateObject");
         AddOrGetCity = require("Waze/Action/AddOrGetCity");
@@ -82,6 +87,8 @@ function WMEEmptyStreet_init() {
     var WMEEmptyStreet = {},
         editpanel = $("#edit-panel");
 
+    sessionStorage.emptyStreetToggle = "";
+
     // Check initialisation
     if (typeof Waze == 'undefined' || typeof I18n == 'undefined') {
         setTimeout(WMEEmptyStreet_init, 660);
@@ -94,6 +101,10 @@ function WMEEmptyStreet_init() {
         return;
     }
 
+    function drawEmptyStreet() {
+        sessionStorage.invokeEmptyStreetToggle = "TRUE";
+        W.accelerators.events.triggerEvent("drawSegment", this);
+    }
 
     function countNewSegments() {
         var segments = W.selectionManager.selectedItems;
@@ -108,19 +119,19 @@ function WMEEmptyStreet_init() {
                 segmentCount += 1;
             }
         });
-        //        log("Nr of new segments" + segmentCount);
         return segmentCount;
     }
 
 
     function setEmptyStreetAndCity() {
-        // Most code from WME ClickSaver 0.8.2 script from MapOMatic
-        var segmentCount = 0;
+
+        //Only run once
+        sessionStorage.emptyStreetToggle = "";
+
         var segments = W.selectionManager.selectedItems;
-        //        log("segmentLength" + segments.length);
 
         if (segments.length === 0 || segments[0].model.type !== 'segment') {
-            alert("emptyStreetAndCity should not have been invoked");
+            log("emptyStreetAndCity should not have been invoked");
             return;
         }
         if (segments.length !== 1) {
@@ -128,6 +139,7 @@ function WMEEmptyStreet_init() {
             return;
         }
 
+    // Most code reused from WME ClickSaver 0.8.2 script from MapOMatic
         segments.forEach(function(segment) {
             var segModel = segment.model;
             // this script is intended only to process not yet confirmed streets
@@ -155,10 +167,9 @@ function WMEEmptyStreet_init() {
                 m_action.doSubAction(addStreetAction);
                 m_action.doSubAction(action3);
                 W.model.actionManager.add(m_action);
+                log("segment set to empty");
             }
-            segmentCount += 1;
         });
-//        log("Amount of segments set to empty:" + segmentCount);
     }
 
 
@@ -179,18 +190,15 @@ function WMEEmptyStreet_init() {
     var emptyStreetObserver = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
             // Mutation is a NodeList and doesn't support forEach like an array
-
             for (var i = 0; i < mutation.addedNodes.length; i++) {
                 var addedNode = mutation.addedNodes[i];
-
                 // Only fire up if it's a node
                 if (addedNode.nodeType === Node.ELEMENT_NODE) {
                     var emptyStreetDiv = addedNode.querySelector('div.clearfix.preview');
                     if (emptyStreetDiv) {
-                        // intent is to process 1 street at a time for multi selections please use other scripts or upgrade this one.
+                        // intent is to process 1 street at a time, just after creation for multi selections please use other scripts or upgrade this one .
                         var newSegmentCount = countNewSegments();
                         var selectionlength = W.selectionManager.selectedItems.length;
-  //                      log("newSegmentCount " + newSegmentCount + " of " + selectionlength + " selections");
                         if (newSegmentCount == 1 && selectionlength == 1) {
                             WMEEmptyStreet.makeButton(emptyStreetDiv);
                         }
@@ -201,13 +209,48 @@ function WMEEmptyStreet_init() {
         });
     });
 
-    // define new shortcut to call the emptyStreet routines
-    // currenty to run after street creation
-    if (I18n.locale == 'en') {
-        WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'Empty street segment', 'Set street and city to empty', setEmptyStreetAndCity, shortcutEmptyStreet);
-    } else {
-      log("Shortcut only active in english WME");
+
+    function emptyStreetPatchDrawSegment(t) {
+        // Make sure the emptyStreet does not run after a cancelled edit event.
+        var newFunction = {
+            func: function() {
+                if (sessionStorage.invokeEmptyStreetToggle == "TRUE") {
+                    sessionStorage.emptyStreetToggle = "TRUE";
+                    sessionStorage.invokeEmptyStreetToggle = "";
+                } else {
+                    sessionStorage.emptyStreetToggle = "";
+                }
+            }
+        };
+        var orginalFunction = W.accelerators.events.listeners.drawSegment[0];
+        W.accelerators.events.listeners.drawSegment.unshift(newFunction);
     }
+
+    function WME_EmptyStreet_onSelectionChanged() {
+        if (W.selectionManager.selectedItems.length == 1) {
+            if (sessionStorage.emptyStreetToggle == "TRUE") {
+                setEmptyStreetAndCity();
+            }
+        }
+    }
+
+    function WME_EmptyStreet_Hook() {
+        emptyStreetPatchDrawSegment();
+        // event on selection change
+        W.selectionManager.events.register("selectionchanged", this, WME_EmptyStreet_onSelectionChanged);
+        console.log("WMEEmptyStreet: Hook");
+    }
+
+    // Shortcut helper routines are english only
+    if (I18n.locale == 'en') {
+        WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'emptyStreetSegment', 'Set street and city to empty', setEmptyStreetAndCity, shortcutEmptyStreet);
+        WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'drawEmptyStreet', 'Draw street and city to empty', drawEmptyStreet, shortcutDrawAndEmptyStreet);
+    } else {
+        log("Shortcut only active in english WME");
+    }
+
+    WME_EmptyStreet_Hook();
+
     // A button for the edit panel as well
     emptyStreetObserver.observe(document.getElementById('edit-panel'), {
         childList: true,
