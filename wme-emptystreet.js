@@ -24,12 +24,12 @@ Alternatively, when 1 segement is unnamed, a button (or shortcut 'u') will empty
 This is the very first version.
 Only works in english (due to english only helperscripts)
 Only tested in Chrome
-
+Be careful around country borders - not tested there
 
 */
 
 
-var VERSION = '0.0.3';
+var VERSION = '0.1.0';
 var shortcutEmptyStreet = "u"; // to move to a config panel, once...
 var shortcutDrawAndEmptyStreet = "k"; // to move to a config panel, once...
 var selectedItems;
