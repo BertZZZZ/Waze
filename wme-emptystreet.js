@@ -24,10 +24,12 @@ Alternatively, when 1 segement is unnamed, a button (or shortcut 'u') will empty
 This is the very first version.
 Only works in english (due to english only helperscripts)
 Only tested in Chrome
+
+
 */
 
 
-var VERSION = '0.0.2';
+var VERSION = '0.0.3';
 var shortcutEmptyStreet = "u"; // to move to a config panel, once...
 var shortcutDrawAndEmptyStreet = "k"; // to move to a config panel, once...
 var selectedItems;
@@ -87,7 +89,8 @@ function WMEEmptyStreet_init() {
     var WMEEmptyStreet = {},
         editpanel = $("#edit-panel");
 
-    sessionStorage.emptyStreetToggle = "";
+    var emptyStreetToggle = false;
+    var invokeEmptyStreetToggle = false;
 
     // Check initialisation
     if (typeof Waze == 'undefined' || typeof I18n == 'undefined') {
@@ -102,7 +105,7 @@ function WMEEmptyStreet_init() {
     }
 
     function drawEmptyStreet() {
-        sessionStorage.invokeEmptyStreetToggle = "TRUE";
+        invokeEmptyStreetToggle = true;
         W.accelerators.events.triggerEvent("drawSegment", this);
     }
 
@@ -110,7 +113,7 @@ function WMEEmptyStreet_init() {
         var segments = W.selectionManager.selectedItems;
         var segmentCount = 0;
         if (segments.length === 0 || segments[0].model.type !== 'segment') {
-            log("No segments selected");
+//            log("No segments selected");
             return 0;
         }
         segments.forEach(function(segment) {
@@ -126,7 +129,7 @@ function WMEEmptyStreet_init() {
     function setEmptyStreetAndCity() {
 
         //Only run once
-        sessionStorage.emptyStreetToggle = "";
+        emptyStreetToggle = false;
 
         var segments = W.selectionManager.selectedItems;
 
@@ -214,11 +217,11 @@ function WMEEmptyStreet_init() {
         // Make sure the emptyStreet does not run after a cancelled edit event.
         var newFunction = {
             func: function() {
-                if (sessionStorage.invokeEmptyStreetToggle == "TRUE") {
-                    sessionStorage.emptyStreetToggle = "TRUE";
-                    sessionStorage.invokeEmptyStreetToggle = "";
+                if (invokeEmptyStreetToggle) {
+                    emptyStreetToggle = true;
+                    invokeEmptyStreetToggle = false;
                 } else {
-                    sessionStorage.emptyStreetToggle = "";
+                    emptyStreetToggle = false;
                 }
             }
         };
@@ -226,18 +229,18 @@ function WMEEmptyStreet_init() {
         W.accelerators.events.listeners.drawSegment.unshift(newFunction);
     }
 
-    function WME_EmptyStreet_onSelectionChanged() {
+    function WMEEmptyStreet_onSelectionChanged() {
         if (W.selectionManager.selectedItems.length == 1) {
-            if (sessionStorage.emptyStreetToggle == "TRUE") {
+            if (emptyStreetToggle) {
                 setEmptyStreetAndCity();
             }
         }
     }
 
-    function WME_EmptyStreet_Hook() {
+    function WMEEmptyStreet_Hook() {
         emptyStreetPatchDrawSegment();
         // event on selection change
-        W.selectionManager.events.register("selectionchanged", this, WME_EmptyStreet_onSelectionChanged);
+        W.selectionManager.events.register("selectionchanged", this, WMEEmptyStreet_onSelectionChanged);
         console.log("WMEEmptyStreet: Hook");
     }
 
@@ -249,7 +252,7 @@ function WMEEmptyStreet_init() {
         log("Shortcut only active in english WME");
     }
 
-    WME_EmptyStreet_Hook();
+    WMEEmptyStreet_Hook();
 
     // A button for the edit panel as well
     emptyStreetObserver.observe(document.getElementById('edit-panel'), {
