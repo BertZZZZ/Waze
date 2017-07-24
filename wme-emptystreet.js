@@ -4,7 +4,7 @@
 // @namespace      bert@schoofs-ven.com
 // @grant          none
 // @grant          GM_info
-// @version        0.0.1
+// @version        0.1.1
 // @include        https://www.waze.com/*/editor/*
 // @include        https://www.waze.com/editor/*
 // @include        https://beta.waze.com/*
@@ -13,11 +13,16 @@
 // @author         Bert Schoofs '2017
 // @license        MIT/BSD/X11
 // @icon
-// @require https://greasyfork.org/scripts/16071-wme-keyboard-shortcuts/code/WME%20Keyboard%20Shortcuts.js
+//  AT require https://greasyfork.org/scripts/16071-wme-keyboard-shortcuts/code/WME%20Keyboard%20Shortcuts.js
 // ==/UserScript==
 // Some code reused from MapOMatic, GertBroos. Thanks Glodenox for the tip.
 /* Changelog
-Drawing a lot of streets in not yet developed Waze countries?  Then save some time an energy by drawing empty streets i.o. unnamed streets.
+v0.1.1
+Moved and internationalizd rickzabels shiortcut script into the body
+should now work in any language
+
+v0.1.0
+Drawing a lot of streets in not yet developed Waze countries?  Then save some time and energy by drawing empty streets i.o. unnamed streets.
 Using shortcut 'k' io 'i' will draw a segment with emptyStreet and emptyCity checkbox set.
 Alternatively, when 1 segement is unnamed, a button (or shortcut 'u') will empty the street and city checkboxes
 
@@ -25,11 +30,13 @@ This is the very first version.
 Only works in english (due to english only helperscripts)
 Only tested in Chrome
 Be careful around country borders - not tested there
+Happy to get some feedback - It's my first public user script  (and coding in javascript in general) - so constructive suggestions welcome.
 
 */
 
 
-var VERSION = '0.1.0';
+
+var VERSION = '0.1.1';
 var shortcutEmptyStreet = "u"; // to move to a config panel, once...
 var shortcutDrawAndEmptyStreet = "k"; // to move to a config panel, once...
 var selectedItems;
@@ -47,6 +54,95 @@ function log(message) {
     }
 }
 
+// Code from https://greasyfork.org/en/users/5920-rickzabel  but then internationalized - awaiting ricks update to remove
+
+function WMEKSRegisterKeyboardShortcut(ScriptName, ShortcutsHeader, NewShortcut, ShortcutDescription, FunctionToCall, ShortcutKeysObj) {
+    // Figure out what language we are using
+    var language = I18n.currentLocale();
+    //check for and add keyboard shourt group to WME
+    try {
+        var x = I18n.translations[language].keyboard_shortcuts.groups[ScriptName].members.length;
+    } catch (e) {
+        //setup keyboard shortcut's header
+        Waze.accelerators.Groups[ScriptName] = []; //setup your shortcut group
+        Waze.accelerators.Groups[ScriptName].members = []; //set up the members of your group
+        I18n.translations[language].keyboard_shortcuts.groups[ScriptName] = []; //setup the shortcuts text
+        I18n.translations[language].keyboard_shortcuts.groups[ScriptName].description = ShortcutsHeader; //Scripts header
+        I18n.translations[language].keyboard_shortcuts.groups[ScriptName].members = []; //setup the shortcuts text
+    }
+    //check if the function we plan on calling exists
+    if (FunctionToCall && (typeof FunctionToCall == "function")) {
+        I18n.translations[language].keyboard_shortcuts.groups[ScriptName].members[NewShortcut] = ShortcutDescription; //shortcut's text
+        Waze.accelerators.addAction(NewShortcut, {
+            group: ScriptName
+        }); //add shortcut one to the group
+        //clear the short cut other wise the previous shortcut will be reset MWE seems to keep it stored
+        var ClearShortcut = '-1';
+        var ShortcutRegisterObj = {};
+        ShortcutRegisterObj[ClearShortcut] = NewShortcut;
+        Waze.accelerators._registerShortcuts(ShortcutRegisterObj);
+        if (ShortcutKeysObj !== null) {
+            //add the new shortcut
+            ShortcutRegisterObj = {};
+            ShortcutRegisterObj[ShortcutKeysObj] = NewShortcut;
+            Waze.accelerators._registerShortcuts(ShortcutRegisterObj);
+        }
+        //listen for the shortcut to happen and run a function
+        W.accelerators.events.register(NewShortcut, null, function() {
+            FunctionToCall();
+        });
+    } else {
+        alert('The function ' + FunctionToCall + ' has not been declared');
+    }
+
+}
+
+//if saved load and set the shortcuts
+function WMEKSLoadKeyboardShortcuts(ScriptName) {
+    if (localStorage[ScriptName + 'KBS']) {
+        var LoadedKBS = JSON.parse(localStorage[ScriptName + 'KBS']); //JSON.parse(localStorage['WMEAwesomeKBS']);
+        for (var i = 0; i < LoadedKBS.length; i++) {
+            Waze.accelerators._registerShortcuts(LoadedKBS[i]);
+        }
+    }
+}
+
+function WMEKSSaveKeyboardShortcuts(ScriptName) {
+    //return function() {
+    var TempToSave = [];
+    for (var name in Waze.accelerators.Actions) {
+        //console.log(name);
+        var TempKeys = "";
+        if (Waze.accelerators.Actions[name].group == ScriptName) {
+            if (Waze.accelerators.Actions[name].shortcut) {
+                if (Waze.accelerators.Actions[name].shortcut.altKey === true) {
+                    TempKeys += 'A';
+                }
+                if (Waze.accelerators.Actions[name].shortcut.shiftKey === true) {
+                    TempKeys += 'S';
+                }
+                if (Waze.accelerators.Actions[name].shortcut.ctrlKey === true) {
+                    TempKeys += 'C';
+                }
+                if (TempKeys !== "") {
+                    TempKeys += '+';
+                }
+                if (Waze.accelerators.Actions[name].shortcut.keyCode) {
+                    TempKeys += Waze.accelerators.Actions[name].shortcut.keyCode;
+                }
+            } else {
+                TempKeys = "-1";
+            }
+            var ShortcutRegisterObj = {};
+            ShortcutRegisterObj[TempKeys] = Waze.accelerators.Actions[name].id;
+            TempToSave[TempToSave.length] = ShortcutRegisterObj;
+        }
+    }
+    localStorage[ScriptName + 'KBS'] = JSON.stringify(TempToSave);
+    //}
+}
+
+
 // initialize WMEEmptyStreet and do some checks
 function WMEEmptyStreet_bootstrap() {
     if (!window.Waze.map) {
@@ -54,24 +150,24 @@ function WMEEmptyStreet_bootstrap() {
         return;
     }
 
-// from bestpractice advice on https://wiki.waze.com/wiki/Scripts/WME_JavaScript_development
-  var bGreasemonkeyServiceDefined = false;
+    // from bestpractice advice on https://wiki.waze.com/wiki/Scripts/WME_JavaScript_development
+    var bGreasemonkeyServiceDefined = false;
 
-  try {
-    if ("object" === typeof Components.interfaces.gmIGreasemonkeyService) {
-      bGreasemonkeyServiceDefined = true;
+    try {
+        if ("object" === typeof Components.interfaces.gmIGreasemonkeyService) {
+            bGreasemonkeyServiceDefined = true;
+        }
+    } catch (err) {
+        //Ignore.
     }
-  } catch (err) {
-    //Ignore.
-  }
-  if ("undefined" === typeof unsafeWindow || !bGreasemonkeyServiceDefined) {
-    unsafeWindow = (function() {
-      var dummyElem = document.createElement('p');
-      dummyElem.setAttribute('onclick', 'return window;');
-      return dummyElem.onclick();
-    })();
-  }
-  // own code here
+    if ("undefined" === typeof unsafeWindow || !bGreasemonkeyServiceDefined) {
+        unsafeWindow = (function() {
+            var dummyElem = document.createElement('p');
+            dummyElem.setAttribute('onclick', 'return window;');
+            return dummyElem.onclick();
+        })();
+    }
+    // own code here
 
     if (typeof(require) !== "undefined") {
         UpdateObject = require("Waze/Action/UpdateObject");
@@ -113,7 +209,7 @@ function WMEEmptyStreet_init() {
         var segments = W.selectionManager.selectedItems;
         var segmentCount = 0;
         if (segments.length === 0 || segments[0].model.type !== 'segment') {
-//            log("No segments selected");
+            //            log("No segments selected");
             return 0;
         }
         segments.forEach(function(segment) {
@@ -142,7 +238,7 @@ function WMEEmptyStreet_init() {
             return;
         }
 
-    // Most code reused from WME ClickSaver 0.8.2 script from MapOMatic
+        // Most code reused from WME ClickSaver 0.8.2 script from MapOMatic
         segments.forEach(function(segment) {
             var segModel = segment.model;
             // this script is intended only to process not yet confirmed streets
@@ -244,13 +340,9 @@ function WMEEmptyStreet_init() {
         console.log("WMEEmptyStreet: Hook");
     }
 
-    // Shortcut helper routines are english only
-    if (I18n.locale == 'en') {
-        WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'emptyStreetSegment', 'Set street and city to empty', setEmptyStreetAndCity, shortcutEmptyStreet);
-        WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'drawEmptyStreet', 'Draw street and city to empty', drawEmptyStreet, shortcutDrawAndEmptyStreet);
-    } else {
-        log("Shortcut only active in english WME");
-    }
+    WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'emptyStreetSegment', 'Set street and city to empty', setEmptyStreetAndCity, shortcutEmptyStreet);
+    WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'drawEmptyStreet', 'Draw street and city to empty', drawEmptyStreet, shortcutDrawAndEmptyStreet);
+
 
     WMEEmptyStreet_Hook();
 
