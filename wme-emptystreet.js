@@ -4,19 +4,21 @@
 // @namespace      bert@schoofs-ven.com
 // @grant          none
 // @grant          GM_info
-// @version        0.1.1
-// @include        https://www.waze.com/*/editor/*
-// @include        https://www.waze.com/editor/*
-// @include        https://beta.waze.com/*
-// @exclude        https://www.waze.com/user/*editor/*
-// @exclude        https://www.waze.com/*/user/*editor/*
+// @version        0.1.2
+// @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @author         Bert Schoofs '2017
 // @license        MIT/BSD/X11
 // @icon
-//  AT require https://greasyfork.org/scripts/16071-wme-keyboard-shortcuts/code/WME%20Keyboard%20Shortcuts.js
+// @require https://greasyfork.org/scripts/16071-wme-keyboard-shortcuts/code/WME%20Keyboard%20Shortcuts.js
 // ==/UserScript==
 // Some code reused from MapOMatic, GertBroos. Thanks Glodenox for the tip.
+
 /* Changelog
+
+v0.1.2
+Reverted to Rickzabels shortcut script after adoption of internationalisation.
+Inserted Glodenox generic url include
+
 v0.1.1
 Moved and internationalizd rickzabels shiortcut script into the body
 should now work in any language
@@ -36,7 +38,7 @@ Happy to get some feedback - It's my first public user script  (and coding in ja
 
 
 
-var VERSION = '0.1.1';
+var VERSION = '0.1.2';
 var shortcutEmptyStreet = "u"; // to move to a config panel, once...
 var shortcutDrawAndEmptyStreet = "k"; // to move to a config panel, once...
 var selectedItems;
@@ -53,95 +55,6 @@ function log(message) {
         console.log('WMEEmptyStreet: ', message);
     }
 }
-
-// Code from https://greasyfork.org/en/users/5920-rickzabel  but then internationalized - awaiting ricks update to remove
-
-function WMEKSRegisterKeyboardShortcut(ScriptName, ShortcutsHeader, NewShortcut, ShortcutDescription, FunctionToCall, ShortcutKeysObj) {
-    // Figure out what language we are using
-    var language = I18n.currentLocale();
-    //check for and add keyboard shourt group to WME
-    try {
-        var x = I18n.translations[language].keyboard_shortcuts.groups[ScriptName].members.length;
-    } catch (e) {
-        //setup keyboard shortcut's header
-        Waze.accelerators.Groups[ScriptName] = []; //setup your shortcut group
-        Waze.accelerators.Groups[ScriptName].members = []; //set up the members of your group
-        I18n.translations[language].keyboard_shortcuts.groups[ScriptName] = []; //setup the shortcuts text
-        I18n.translations[language].keyboard_shortcuts.groups[ScriptName].description = ShortcutsHeader; //Scripts header
-        I18n.translations[language].keyboard_shortcuts.groups[ScriptName].members = []; //setup the shortcuts text
-    }
-    //check if the function we plan on calling exists
-    if (FunctionToCall && (typeof FunctionToCall == "function")) {
-        I18n.translations[language].keyboard_shortcuts.groups[ScriptName].members[NewShortcut] = ShortcutDescription; //shortcut's text
-        Waze.accelerators.addAction(NewShortcut, {
-            group: ScriptName
-        }); //add shortcut one to the group
-        //clear the short cut other wise the previous shortcut will be reset MWE seems to keep it stored
-        var ClearShortcut = '-1';
-        var ShortcutRegisterObj = {};
-        ShortcutRegisterObj[ClearShortcut] = NewShortcut;
-        Waze.accelerators._registerShortcuts(ShortcutRegisterObj);
-        if (ShortcutKeysObj !== null) {
-            //add the new shortcut
-            ShortcutRegisterObj = {};
-            ShortcutRegisterObj[ShortcutKeysObj] = NewShortcut;
-            Waze.accelerators._registerShortcuts(ShortcutRegisterObj);
-        }
-        //listen for the shortcut to happen and run a function
-        W.accelerators.events.register(NewShortcut, null, function() {
-            FunctionToCall();
-        });
-    } else {
-        alert('The function ' + FunctionToCall + ' has not been declared');
-    }
-
-}
-
-//if saved load and set the shortcuts
-function WMEKSLoadKeyboardShortcuts(ScriptName) {
-    if (localStorage[ScriptName + 'KBS']) {
-        var LoadedKBS = JSON.parse(localStorage[ScriptName + 'KBS']); //JSON.parse(localStorage['WMEAwesomeKBS']);
-        for (var i = 0; i < LoadedKBS.length; i++) {
-            Waze.accelerators._registerShortcuts(LoadedKBS[i]);
-        }
-    }
-}
-
-function WMEKSSaveKeyboardShortcuts(ScriptName) {
-    //return function() {
-    var TempToSave = [];
-    for (var name in Waze.accelerators.Actions) {
-        //console.log(name);
-        var TempKeys = "";
-        if (Waze.accelerators.Actions[name].group == ScriptName) {
-            if (Waze.accelerators.Actions[name].shortcut) {
-                if (Waze.accelerators.Actions[name].shortcut.altKey === true) {
-                    TempKeys += 'A';
-                }
-                if (Waze.accelerators.Actions[name].shortcut.shiftKey === true) {
-                    TempKeys += 'S';
-                }
-                if (Waze.accelerators.Actions[name].shortcut.ctrlKey === true) {
-                    TempKeys += 'C';
-                }
-                if (TempKeys !== "") {
-                    TempKeys += '+';
-                }
-                if (Waze.accelerators.Actions[name].shortcut.keyCode) {
-                    TempKeys += Waze.accelerators.Actions[name].shortcut.keyCode;
-                }
-            } else {
-                TempKeys = "-1";
-            }
-            var ShortcutRegisterObj = {};
-            ShortcutRegisterObj[TempKeys] = Waze.accelerators.Actions[name].id;
-            TempToSave[TempToSave.length] = ShortcutRegisterObj;
-        }
-    }
-    localStorage[ScriptName + 'KBS'] = JSON.stringify(TempToSave);
-    //}
-}
-
 
 // initialize WMEEmptyStreet and do some checks
 function WMEEmptyStreet_bootstrap() {
