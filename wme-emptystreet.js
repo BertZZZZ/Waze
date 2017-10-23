@@ -3,16 +3,26 @@
 // @description    Makes creating new streets in developing areas faster
 // @grant          none
 // @grant          GM_info
-// @version        2.1.0
+// @version        2.2.1
 // @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
 // @author         BertZZZZ '2017
 // @license        MIT/BSD/X11
 // @icon
 // @require https://greasyfork.org/scripts/16071-wme-keyboard-shortcuts/code/WME%20Keyboard%20Shortcuts.js
 // ==/UserScript==
-// Some code reused from MapOMatic, GertBroos. Thanks Glodenox for the tip.
+// Some code reused from MapOMatic, GertBroos, Glodenox
 
 /* Changelog
+
+v2.2.1
+Added some state support
+Still searching for a way to be sure of the state when drawing a not connected street.
+
+v2.2.0
+Now displays default city on top + help
+bugfixing of the "U" functionality - disabled on existing segments - retains city
+changed log behaviour
+contains uncompleted features ()
 
 v2.1.0
 Fix drawing empty segments in areas where  no other empty segments were available.
@@ -53,16 +63,25 @@ Happy to get some feedback - It's my first public user script  (and coding in ja
 
 
 
-var VERSION = '2.1.0';
-var shortcutEmptyStreet = "u"; // to move to a config panel, once...
-var shortcutDrawAndEmptyStreet = "k"; // to move to a config panel, once...
-var shortcutResetCityAssignment = "j"; // to move to a config panel, once...
+var VERSION = '2.2.1';
+var shortcutEmptyStreet = "u",
+    shortcutEmptyStreetDesc = "emptyStreet"; // to move to a config panel, once...
+var shortcutDrawAndEmptyStreet = "k",
+    shortcutDrawAndEmptyStreetDesc = "drawEmptyStreet"; // to move to a config panel, once...
+var shortcutResetCityAssignment = "j",
+    shortcutResetCityAssignmentDesc = "resetCityAssignment"; // to move to a config panel, once...
+var shortcutEmptyCitySegment = "A+u",
+    shortcutEmptyCitySegmentDesc = "emptyCity (n/a)"; // to move to a config panel, once...
 var selectedItems;
 var UpdateObject,
     AddOrGetCity,
     AddOrGetStreet,
     MultiAction;
 
+var emptyStreetHelp = shortcutEmptyStreetDesc + ": " + shortcutEmptyStreet + " / " +
+    shortcutDrawAndEmptyStreetDesc + ": " + shortcutDrawAndEmptyStreet + " / " +
+    shortcutResetCityAssignmentDesc + ": " + shortcutResetCityAssignment + " / " +
+    shortcutEmptyCitySegmentDesc + ": " + shortcutEmptyCitySegment;
 
 function log(message) {
     if (typeof message === 'string') {
@@ -151,6 +170,30 @@ function WMEEmptyStreet_init() {
         return segmentCount;
     }
 
+
+    function displayCurrentEmptyCityLocation() {
+        var locationDiv = document.querySelector('#topbar-container > div > div > div.location-info-region > div');
+        var emptyStreetDiv = locationDiv.querySelector('small');
+        var defaultCityDisplay;
+
+        if (emptyStreetDiv == null) {
+            emptyStreetDiv = document.createElement('small');
+            emptyStreetDiv.style.marginLeft = '5px';
+            locationDiv.appendChild(emptyStreetDiv);
+        }
+        switch (cityIDAssigned) { // null = to be set, 0 = keep city empty , other number = use city
+            case null:
+                defaultCityDisplay = "to set";
+                break;
+            case 0:
+                defaultCityDisplay = "empty";
+                break;
+            default:
+                defaultCityDisplay = getCity(cityIDAssigned).attributes.name;
+        }
+        emptyStreetDiv.textContent = '[Default ES City: ' + defaultCityDisplay + ']' + " " + emptyStreetHelp;
+    }
+
     //Look if a connected segment has already a city assigned
     //This version only looks at directly connected segments
 
@@ -174,12 +217,46 @@ function WMEEmptyStreet_init() {
         log("Different cities detected, resetting city assignment");
         resetCityAssignment();
         alert("EmptyStreet connected to different cities. Please assign cities manually");
+        displayCurrentEmptyCityLocation();
     }
 
-    function getConnectedCityID(segmentSelected) {
+    function getFirstConnectedStateID(startSegment) {
+        var stateID = null;
+        var nonMatches = [];
+        var segmentIDsToSearch = [startSegment.attributes.id];
+        while (stateID === null && segmentIDsToSearch.length > 0) {
+            var startSegmentID = segmentIDsToSearch.pop();
+            startSegment = W.model.segments.get(startSegmentID);
+            var connectedSegmentIDs = getConnectedSegmentIDs(startSegment);
+            for (var i = 0; i < connectedSegmentIDs.length; i++) {
+                var streetID = W.model.segments.get(connectedSegmentIDs[i]).attributes.primaryStreetID;
+                if (streetID !== null && typeof(streetID) !== 'undefined') {
+                    var cityID = W.model.streets.get(streetID).cityID;
+                    stateID = W.model.cities.get(cityID).attributes.stateID;
+                    break;
+                }
+            }
+
+            if (stateID === null) {
+                nonMatches.push(startSegmentID);
+                connectedSegmentIDs.forEach(function(segmentID) {
+                    if (nonMatches.indexOf(segmentID) === -1 && segmentIDsToSearch.indexOf(segmentID) === -1) {
+                        segmentIDsToSearch.push(segmentID);
+                    }
+                });
+            } else {
+                return stateID;
+            }
+        }
+        return null;
+    }
+
+
+
+    function getConnectedCityID(segmentSelected, stateID) {
         var cityID = null;
         var connectedSegmentIDs = getConnectedSegmentIDs(segmentSelected);
-        var emptyCityID = getEmptyCity().attributes.id;
+        var emptyCityID = getEmptyCity(stateID).attributes.id;
         for (var i = 0; i < connectedSegmentIDs.length; i++) {
             var streetID = W.model.segments.get(connectedSegmentIDs[i]).attributes.primaryStreetID;
             if (streetID !== null && typeof(streetID) !== 'undefined') {
@@ -208,12 +285,11 @@ function WMEEmptyStreet_init() {
         }
     }
 
-    function getEmptyCity() {
+    function getEmptyCity(stateID) {
         var emptyCity = null;
         W.model.cities.getObjectArray().forEach(function(city) {
-            if (city.attributes.isEmpty) {
+            if (city.attributes.stateID === stateID && city.attributes.isEmpty) {
                 emptyCity = city;
-                // log(emptyCity);
             }
         });
         return emptyCity;
@@ -221,12 +297,26 @@ function WMEEmptyStreet_init() {
 
     // code MapOMatic until here
 
-    function setEmptyStreetAndCity() {
-        var cityIDToSet, emptyState, country, addCityAction, suggestedCity, segModel;
-        var addStreetAction, addEsCity, action3;
+    function setEmptyStreetAndCity(resetCityOnly) {
+        var cityIDToSet, state, stateID, country, addCityAction, suggestedCity, segModel;
+        var addStreetAction, addEsCity, action3, targetStreet, newStreet;
         var segments = W.selectionManager.selectedItems;
 
         emptyStreetToggle = false; //Only run once
+
+        segModel = segments[0].model;
+        if (W.model.hasStates()) {
+            if (segModel.attributes.id == -100) {
+                stateID = W.model.states.top.id;
+                alert("Using state: " + W.model.states.top.name + ". Do not save if not correct!");
+            } else {
+                stateID = getFirstConnectedStateID(segModel);
+            }
+        } else {
+            stateID = W.model.states.top.id;
+        }
+        state = W.model.states.get(stateID);
+
 
         if (segments.length === 0 || segments[0].model.type !== 'segment') {
             log("emptyStreetAndCity should not have been invoked");
@@ -237,15 +327,19 @@ function WMEEmptyStreet_init() {
             return;
         }
 
-        suggestedCity = getConnectedCityID(segments[0].model);
-        // here handling a empty suggestion
+        if (resetCityOnly) {
+            suggestedCity = -998;
+        } else {
+            suggestedCity = getConnectedCityID(segments[0].model, stateID);
+        }
 
-        if (suggestedCity == -999) {
+        if (suggestedCity == -998) {
+            log("City to be wiped");
+        } else if (suggestedCity == -999) {
             warnAndResetCityAssignment();
             return;
         } else if (suggestedCity == null) {
             log("No connected cities detected");
-
         } else if (cityIDAssigned === null) { // no choice is made if city is to be reused.
             // dialog to accept new city as default
             var cityNameFound = getCity(suggestedCity).attributes.name;
@@ -254,7 +348,8 @@ function WMEEmptyStreet_init() {
             } else {
                 cityIDAssigned = 0; // next edits remain empty
             }
-            log("cityIDAssigned=" + cityIDAssigned);
+            displayCurrentEmptyCityLocation();
+            // log("cityIDAssigned=" + cityIDAssigned);
         } else if (cityIDAssigned != suggestedCity) {
             log("setEmptyStreetAndCity(): warnAndResetCityAssignment");
             warnAndResetCityAssignment();
@@ -262,48 +357,58 @@ function WMEEmptyStreet_init() {
         }
 
         // Most code reused from WME ClickSaver 0.8.2 script from MapOMatic
-        segModel = segments[0].model;
 
-        if (segModel.attributes.primaryStreetID === null) { // this script is intended only to process not yet confirmed streets
-            if (cityIDAssigned === 0 || cityIDAssigned === null) { // make it empty
-                cityIDToSet = getEmptyCity().attributes.id;
-                log("EmptyCity used:" + cityIDToSet);
-            } else {
-                cityIDToSet = cityIDAssigned;
-                log("Reusing saved cityID:" + cityIDToSet);
-            }
+        if (cityIDAssigned === 0 || cityIDAssigned === null || resetCityOnly) { // make it empty
+            cityIDToSet = getEmptyCity(stateID).attributes.id;
+            // log("EmptyCity used:" + cityIDToSet);
+        } else {
+            cityIDToSet = cityIDAssigned;
+            // log("Reusing saved cityID:" + cityIDToSet);
+        }
 
-            var m_action = new MultiAction();
-            m_action.setModel(W.model);
+        var m_action = new MultiAction();
+        m_action.setModel(W.model);
 
-            emptyState = Waze.model.states.get(W.model.states.top.id); //W.model.cities.objects[cityIDToSet];
-            country = W.model.countries.get(W.model.countries.top.id);
-            addCityAction = new AddOrGetCity(emptyState, country, ""); //why a true here in the orig script?
-            m_action.doSubAction(addCityAction);
+        if (W.model.hasStates()) {
+            country = Waze.model.countries.get(state.countryID);
+        } else {
+            country = Waze.model.countries.get(Waze.model.countries.top.id);
+        }
+        addCityAction = new AddOrGetCity(state, country, ""); //why a true here in orginal script?
+        m_action.doSubAction(addCityAction);
+
+        if (segModel.attributes.primaryStreetID === null) { // process a new street
             addEsCity = Waze.model.cities.objects[cityIDToSet];
-
-            var newStreet = {
+            newStreet = {
                 isEmpty: true,
                 cityID: cityIDToSet
             };
-            var emptyStreet = W.model.streets.getByAttributes(newStreet)[0];
-            addStreetAction = new AddOrGetStreet("", addEsCity, true);
-            m_action.doSubAction(addStreetAction);
-            if (!emptyStreet) {
-                emptyStreet = W.model.streets.getByAttributes(newStreet)[0];
-                if (!emptyStreet) {
+            targetStreet = W.model.streets.getByAttributes(newStreet)[0];
+            if (!targetStreet) {
+                addStreetAction = new AddOrGetStreet("", addEsCity, true);
+                m_action.doSubAction(addStreetAction);
+                targetStreet = W.model.streets.getByAttributes(newStreet)[0];
+                if (!targetStreet) {
                     alert("No emptyStreet found in the model. Aborting edit.");
                     return;
                 }
             }
-            m_action.doSubAction(addStreetAction);
             action3 = new UpdateObject(segModel, {
-                primaryStreetID: emptyStreet.id
+                primaryStreetID: targetStreet.id
             });
             m_action.doSubAction(action3);
             W.model.actionManager.add(m_action);
-            log("segment set to empty");
+            log("emptyStreet added");
+
+        } else { // process an existing street
+            alert("Processing existing streets function not yet implemented");
+            return;
         }
+
+    }
+
+    function emptyCitySegment() {
+        setEmptyStreetAndCity(true);
     }
 
     WMEEmptyStreet.makeButton = function(receiver) {
@@ -362,6 +467,7 @@ function WMEEmptyStreet_init() {
     function resetCityAssignment() {
         log("Default City " + cityIDAssigned + " reset to null");
         cityIDAssigned = null;
+        displayCurrentEmptyCityLocation();
     }
 
     function WMEEmptyStreet_onSelectionChanged() {
@@ -383,6 +489,7 @@ function WMEEmptyStreet_init() {
     WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'emptyStreetSegment', 'Set street and city to empty', setEmptyStreetAndCity, shortcutEmptyStreet);
     WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'drawEmptyStreet', 'Draw street and city to empty', drawEmptyStreet, shortcutDrawAndEmptyStreet);
     WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'resetCityAssignment', 'Reset default city', resetCityAssignment, shortcutResetCityAssignment);
+    WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'emptyCitySegment', 'Set city to empty', emptyCitySegment, shortcutEmptyCitySegment);
 
     WMEEmptyStreet_Hook();
 
@@ -391,5 +498,9 @@ function WMEEmptyStreet_init() {
         childList: true,
         subtree: true
     });
+
+    // Display the default location on top
+    displayCurrentEmptyCityLocation();
+
 }
 setTimeout(WMEEmptyStreet_bootstrap, 3000);
