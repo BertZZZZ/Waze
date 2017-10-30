@@ -528,7 +528,7 @@
 
             var cityIDAssginedName = W.model.cities.get(cityIDAssigned).attributes.name ;
             cityIDAssginedName = (cityIDAssginedName == "") ? "Empty" : cityIDAssginedName;
-            alert("Cities: " + changedCities.join(" ; ") + " updated to" + cityIDAssginedName ); //here move to a count function e.g. x empty, x Leuven
+            alert("Cities: " + changedCities.join(" ; ") + " updated to " + cityIDAssginedName ); //here move to a count function e.g. x empty, x Leuven
 
         }
 
