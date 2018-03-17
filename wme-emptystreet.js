@@ -3,7 +3,7 @@
     // @description    Makes creating new streets in developing areas faster
     // @grant          none
     // @grant          GM_info
-    // @version        3.0.0
+    // @version        3.0.1
     // @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
     // @author         BertZZZZ '2017
     // @license        MIT/BSD/X11
@@ -13,6 +13,9 @@
     // Some code reused from MapOMatic, GertBroos, Glodenox, Eduardo Carvajal, vtnerd91
 
     /* Changelog
+
+    v3.0.1
+    - Remove dependency on Waze object
 
     v3.0.0
     Added features for city boundary cleaning
@@ -480,15 +483,15 @@
             m_action.setModel(W.model);
 
             if (W.model.hasStates()) {
-                country = Waze.model.countries.get(state.countryID);
+                country = W.model.countries.get(state.countryID);
             } else {
-                country = Waze.model.countries.get(Waze.model.countries.top.id);
+                country = W.model.countries.get(W.model.countries.top.id);
             }
             addCityAction = new AddOrGetCity(state, country, ""); //why a true here in orginal script?
             m_action.doSubAction(addCityAction);
 
             if (segModel.attributes.primaryStreetID === null) { // process a new street
-                addEsCity = Waze.model.cities.objects[cityIDToSet];
+                addEsCity = W.model.cities.objects[cityIDToSet];
                 newStreet = {
                     isEmpty: true,
                     cityID: cityIDToSet
