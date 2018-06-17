@@ -54,7 +54,7 @@
 
 
 
-    var VERSION = '3.0.0';
+    var VERSION = '3.0.1';
     var shortcutEmptyStreet = "u",
         shortcutEmptyStreetDesc = "emptyStreet"; // to move to a config panel, once...
     var shortcutDrawAndEmptyStreet = "k",
