@@ -3,7 +3,7 @@
     // @description    Makes creating new streets in developing areas faster
     // @grant          none
     // @grant          GM_info
-    // @version        3.0.1
+    // @version        3.0.2
     // @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
     // @author         BertZZZZ '2017
     // @license        MIT/BSD/X11
@@ -13,6 +13,8 @@
     // Some code reused from MapOMatic, GertBroos, Glodenox, Eduardo Carvajal, vtnerd91
 
     /* Changelog
+    v3.0.2
+    - Replace .selectedItems by .getSelectedFeatures()
 
     v3.0.1
     - Remove dependency on Waze object
@@ -54,7 +56,7 @@
 
 
 
-    var VERSION = '3.0.1';
+    var VERSION = '3.0.2';
     var shortcutEmptyStreet = "u",
         shortcutEmptyStreetDesc = "emptyStreet"; // to move to a config panel, once...
     var shortcutDrawAndEmptyStreet = "k",
@@ -85,7 +87,7 @@
 
     // initialize WMEEmptyStreet and do some checks
     function WMEEmptyStreet_bootstrap() {
-        if (!window.Waze.map) {
+        if (!window.W.map) {
             setTimeout(WMEEmptyStreet_bootstrap, 1000);
             return;
         }
@@ -155,15 +157,15 @@
         }
 
         function setEmptyStreetAndCityKey() {
-            if (W.selectionManager.selectedItems.length == 1) {
-                setEmptyStreetAndCity(W.selectionManager.selectedItems[0]);
+            if (W.selectionManager.getSelectedFeatures().length == 1) {
+                setEmptyStreetAndCity(W.selectionManager.getSelectedFeatures()[0]);
             } else {
                 log("emptyStreetAndCity should not have been invoked - expecting 1 segment");
             }
         }
 
         function countNewSegments() {
-            var segments = W.selectionManager.selectedItems;
+            var segments = W.selectionManager.getSelectedFeatures();
             var segmentCount = 0;
             if (segments.length === 0 || segments[0].model.type !== 'segment') {
                 //            log("No segments selected");
@@ -522,7 +524,7 @@
 
         function applyCitySegment() {
             var changedCities = [];
-            var segments = W.selectionManager.selectedItems;
+            var segments = W.selectionManager.getSelectedFeatures() ;
 
             segments.forEach(function(segment) {
                 var updatedCity = updateSegmentCity(segment, cityIDAssigned);
@@ -543,7 +545,7 @@
             _button.title = "Check the emptyStreet and emptyCity checkboxes";
             _button.innerHTML = shortcutEmptyStreet;
             _button.onclick = function() {
-                setEmptyStreetAndCity(W.selectionManager.selectedItems[0]);
+                setEmptyStreetAndCity(W.selectionManager.getSelectedFeatures()[0]);
             };
             receiver.append(_button);
         };
@@ -560,7 +562,7 @@
                         if (emptyStreetDiv) {
                             // intent is to process 1 street at a time, just after creation for multi selections please use other scripts or upgrade this one .
                             var newSegmentCount = countNewSegments();
-                            var selectionlength = W.selectionManager.selectedItems.length;
+                            var selectionlength = W.selectionManager.getSelectedFeatures().length;
                             if (newSegmentCount == 1 && selectionlength == 1) {
                                 WMEEmptyStreet.makeButton(emptyStreetDiv);
                             }
@@ -589,7 +591,7 @@
         }
 
         function resetCityAssignment() {
-            var segments = W.selectionManager.selectedItems;
+            var segments = W.selectionManager.getSelectedFeatures();
 
             switch (segments.length) {
                 case 0:
@@ -608,9 +610,9 @@
 
         function WMEEmptyStreet_onSelectionChanged() {
             var suggestedCity = null;
-            if (W.selectionManager.selectedItems.length == 1) {
+            if (W.selectionManager.getSelectedFeatures().length == 1) {
                 if (emptyStreetToggle) {
-                    setEmptyStreetAndCity(W.selectionManager.selectedItems[0]);
+                    setEmptyStreetAndCity(W.selectionManager.getSelectedFeatures()[0]);
                 }
             }
         }
