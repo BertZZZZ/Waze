@@ -3,7 +3,7 @@
     // @description    Makes creating new streets in developing areas faster
     // @grant          none
     // @grant          GM_info
-    // @version        3.1
+    // @version        3.1.1
     // @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
     // @author         BertZZZZ '2017
     // @license        MIT/BSD/X11
@@ -13,6 +13,9 @@
     // Some code reused from MapOMatic, GertBroos, Glodenox, Eduardo Carvajal, vtnerd91
 
     /* Changelog
+    v3.1.1
+    - made the unpaved option more robust against unexpected drawing abend.
+    
     v3.1
     - added support for unpaved
 
@@ -59,13 +62,13 @@
 
 
 
-    var VERSION = '3.1';
+    var VERSION = '3.1.1';
     var shortcutEmptyStreet = "u",
         shortcutEmptyStreetDesc = "emptyStreet"; // to move to a config panel, once...
     var shortcutDrawAndEmptyStreet = "k",
         shortcutDrawAndEmptyStreetDesc = "drawEmptyStreet"; // to move to a config panel, once...
     var shortcutDrawAndEmptyStreetUnpaved = "y",
-        shortcutDrawAndEmptyStreetUnpavedDesc = "drawEmptyStreetUnpaved"; // to move to a config panel, once...
+        shortcutDrawAndEmptyStreetUnpavedDesc = "drawESUnpaved"; // to move to a config panel, once...
     var shortcutResetCityAssignment = "j",
         shortcutResetCityAssignmentDesc = "pickCityAssignment"; // to move to a config panel, once...
     var shortcutApplyCitySegment = "A+u",
@@ -160,12 +163,14 @@
 
         function drawEmptyStreet() {
             invokeEmptyStreetToggle = true;
+            emptyStreetUnpavedToggle = false;
             W.accelerators.events.triggerEvent("drawSegment", this);
         }
 
         function drawEmptyStreetUnpaved() {
+            invokeEmptyStreetToggle = true;
             emptyStreetUnpavedToggle = true;
-            drawEmptyStreet();
+            W.accelerators.events.triggerEvent("drawSegment", this);
         }
 
         function setEmptyStreetAndCityKey() {
