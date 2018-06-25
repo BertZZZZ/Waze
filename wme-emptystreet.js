@@ -3,7 +3,7 @@
     // @description    Makes creating new streets in developing areas faster
     // @grant          none
     // @grant          GM_info
-    // @version        3.0.2
+    // @version        3.1
     // @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
     // @author         BertZZZZ '2017
     // @license        MIT/BSD/X11
@@ -13,6 +13,9 @@
     // Some code reused from MapOMatic, GertBroos, Glodenox, Eduardo Carvajal, vtnerd91
 
     /* Changelog
+    v3.1
+    - added support for unpaved
+
     v3.0.2
     - Replace .selectedItems by .getSelectedFeatures()
 
@@ -56,11 +59,13 @@
 
 
 
-    var VERSION = '3.0.2';
+    var VERSION = '3.1';
     var shortcutEmptyStreet = "u",
         shortcutEmptyStreetDesc = "emptyStreet"; // to move to a config panel, once...
     var shortcutDrawAndEmptyStreet = "k",
         shortcutDrawAndEmptyStreetDesc = "drawEmptyStreet"; // to move to a config panel, once...
+    var shortcutDrawAndEmptyStreetUnpaved = "y",
+        shortcutDrawAndEmptyStreetUnpavedDesc = "drawEmptyStreetUnpaved"; // to move to a config panel, once...
     var shortcutResetCityAssignment = "j",
         shortcutResetCityAssignmentDesc = "pickCityAssignment"; // to move to a config panel, once...
     var shortcutApplyCitySegment = "A+u",
@@ -74,6 +79,7 @@
 
     var emptyStreetHelp = shortcutEmptyStreetDesc + ": " + shortcutEmptyStreet + " / " +
         shortcutDrawAndEmptyStreetDesc + ": " + shortcutDrawAndEmptyStreet + " / " +
+        shortcutDrawAndEmptyStreetUnpaved + ": " + shortcutDrawAndEmptyStreetUnpavedDesc + " / " +
         shortcutResetCityAssignmentDesc + ": " + shortcutResetCityAssignment + " / " +
         shortcutApplyCitySegmentDesc + ": " + shortcutApplyCitySegment;
 
@@ -136,6 +142,7 @@
             editpanel = $("#edit-panel");
 
         var emptyStreetToggle = false;
+        var emptyStreetUnpavedToggle = false;
         var invokeEmptyStreetToggle = false;
         var cityIDAssigned = null; // null = to be set, 0 = keep city empty , other number = use city
 
@@ -154,6 +161,11 @@
         function drawEmptyStreet() {
             invokeEmptyStreetToggle = true;
             W.accelerators.events.triggerEvent("drawSegment", this);
+        }
+
+        function drawEmptyStreetUnpaved() {
+            emptyStreetUnpavedToggle = true;
+            drawEmptyStreet();
         }
 
         function setEmptyStreetAndCityKey() {
@@ -434,8 +446,14 @@
         function setEmptyStreetAndCity(segment) {
             var cityIDToSet, state, stateID, country, addCityAction, suggestedCity, segModel;
             var addStreetAction, addEsCity, action3, targetStreet, newStreet;
+            var unPavedAttribute;
 
+            unPavedAttribute = 0;
             emptyStreetToggle = false; //Only run once
+            if (emptyStreetUnpavedToggle == true) {
+                unPavedAttribute = 16;
+                emptyStreetUnpavedToggle = false;
+            }
 
             segModel = segment.model;
             stateID = getStateID(segModel);
@@ -509,7 +527,8 @@
                     }
                 }
                 action3 = new UpdateObject(segModel, {
-                    primaryStreetID: targetStreet.id
+                    primaryStreetID: targetStreet.id,
+                    flags: unPavedAttribute
                 });
                 m_action.doSubAction(action3);
                 W.model.actionManager.add(m_action);
@@ -626,6 +645,7 @@
 
         WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'emptyStreetSegment', 'Set street and city to empty', setEmptyStreetAndCityKey, shortcutEmptyStreet);
         WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'drawEmptyStreet', 'Draw street and city to empty', drawEmptyStreet, shortcutDrawAndEmptyStreet);
+        WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'drawEmptyStreetUnpaved', 'Draw street and city to empty', drawEmptyStreetUnpaved, shortcutDrawAndEmptyStreetUnpaved);
         WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'resetCityAssignment', 'Reset default city', resetCityAssignment, shortcutResetCityAssignment);
         WMEKSRegisterKeyboardShortcut('WMEEmptyStreet', 'WME emptyStreet', 'applyCitySegment', 'Apply default to City', applyCitySegment, shortcutApplyCitySegment);
 
