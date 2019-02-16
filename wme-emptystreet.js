@@ -3,7 +3,7 @@
     // @description    Makes creating new streets in developing areas faster
     // @grant          none
     // @grant          GM_info
-    // @version        3.1.1
+    // @version        3.1.2
     // @include     /^https:\/\/(www|beta)\.waze\.com\/(?!user\/)(.{2,6}\/)?editor.*$/
     // @author         BertZZZZ '2017
     // @license        MIT/BSD/X11
@@ -13,9 +13,12 @@
     // Some code reused from MapOMatic, GertBroos, Glodenox, Eduardo Carvajal, vtnerd91
 
     /* Changelog
+    v3.1.2
+    - remove depreciated getMethod
+
     v3.1.1
     - made the unpaved option more robust against unexpected drawing abend.
-    
+
     v3.1
     - added support for unpaved
 
@@ -62,7 +65,7 @@
 
 
 
-    var VERSION = '3.1.1';
+    var VERSION = '3.1.2';
     var shortcutEmptyStreet = "u",
         shortcutEmptyStreetDesc = "emptyStreet"; // to move to a config panel, once...
     var shortcutDrawAndEmptyStreet = "k",
@@ -228,8 +231,8 @@
         function getConnectedSegmentIDs(segmentToSearch) {
             var IDs = [];
             var segmentID = segmentToSearch.attributes.id;
-            var segment = W.model.segments.get(segmentID);
-            [W.model.nodes.get(segment.attributes.fromNodeID), W.model.nodes.get(segment.attributes.toNodeID)].forEach(function(node) {
+            var segment = W.model.segments.getObjectById(segmentID);
+            [W.model.nodes.getObjectById(segment.attributes.fromNodeID), W.model.nodes.getObjectById(segment.attributes.toNodeID)].forEach(function(node) {
                 if (node) {
                     node.attributes.segIDs.forEach(function(segID) {
                         if (segID !== segmentID) {
@@ -260,13 +263,13 @@
             var segmentIDsToSearch = [startSegment.attributes.id];
             while (stateID === null && segmentIDsToSearch.length > 0) {
                 var startSegmentID = segmentIDsToSearch.pop();
-                startSegment = W.model.segments.get(startSegmentID);
+                startSegment = W.model.segments.getObjectById(startSegmentID);
                 var connectedSegmentIDs = getConnectedSegmentIDs(startSegment);
                 for (var i = 0; i < connectedSegmentIDs.length; i++) {
-                    var streetID = W.model.segments.get(connectedSegmentIDs[i]).attributes.primaryStreetID;
+                    var streetID = W.model.segments.getObjectById(connectedSegmentIDs[i]).attributes.primaryStreetID;
                     if (streetID !== null && typeof(streetID) !== 'undefined') {
-                        var cityID = W.model.streets.get(streetID).cityID;
-                        stateID = W.model.cities.get(cityID).attributes.stateID;
+                        var cityID = W.model.streets.getObjectById(streetID).cityID;
+                        stateID = W.model.cities.getObjectById(cityID).attributes.stateID;
                         break;
                     }
                 }
@@ -292,9 +295,9 @@
             var emptyCity = getEmptyCity(stateID);
             if (emptyCity != null) { emptyCityID = emptyCity.attributes.id; }
             for (var i = 0; i < connectedSegmentIDs.length; i++) {
-                var streetID = W.model.segments.get(connectedSegmentIDs[i]).attributes.primaryStreetID;
+                var streetID = W.model.segments.getObjectById(connectedSegmentIDs[i]).attributes.primaryStreetID;
                 if (streetID !== null && typeof(streetID) !== 'undefined') {
-                    var currentCityID = W.model.streets.get(streetID).cityID;
+                    var currentCityID = W.model.streets.getObjectById(streetID).cityID;
                     if (currentCityID != emptyCityID) {
                         if (cityID === null) {
                             cityID = currentCityID;
@@ -338,11 +341,11 @@
         }
 
         function updateCity(seg, streetId, newCityID, isAlt) { // adapted from city remover of vtnerd91
-            var street = W.model.streets.get(streetId);
+            var street = W.model.streets.getObjectById(streetId);
             if (street != null) {
                 var cityID = street.cityID;
                 if (cityID != null && cityID != newCityID) {
-                    var city = W.model.cities.get(cityID);
+                    var city = W.model.cities.getObjectById(cityID);
                     if (!seg.isGeometryEditable()) {
                         console.log("Cannot edit segment " + seg.attributes.id);
                         return false;
@@ -356,7 +359,7 @@
                             if (newCityID == null || newCityID == 0) {
                                 attr.emptyCity = true;
                             } else {
-                                attr.cityName = W.model.cities.get(newCityID).attributes.name
+                                attr.cityName = W.model.cities.getObjectById(newCityID).attributes.name
                             }
                             if (street.name == null) {
                                 attr.emptyStreet = true;
@@ -382,7 +385,7 @@
                                 };
                             } else {
                                 attr = {
-                                    cityName: W.model.cities.get(newCityID).attributes.name
+                                    cityName: W.model.cities.getObjectById(newCityID).attributes.name
                                 };
                             }
                             if (street.name == null) {
@@ -411,7 +414,7 @@
                     return "New Street";
                 }
 
-                var oldCityID = W.model.streets.get(segModel.attributes.primaryStreetID).cityID;
+                var oldCityID = W.model.streets.getObjectById(segModel.attributes.primaryStreetID).cityID;
                 var oldCityName = getCity(oldCityID).attributes.name;
                 oldCityName = (oldCityName == "") ? "Empty" : oldCityName;
                 log("oldcityID: " + oldCityID + " : " + oldCityName);
@@ -462,7 +465,7 @@
 
             segModel = segment.model;
             stateID = getStateID(segModel);
-            state = W.model.states.get(stateID);
+            state = W.model.states.getObjectById(stateID);
 
 
             if (segment == null || Array.isArray(segment) || segment.model.type !== 'segment') {
@@ -508,9 +511,9 @@
             m_action.setModel(W.model);
 
             if (W.model.hasStates()) {
-                country = W.model.countries.get(state.countryID);
+                country = W.model.countries.getObjectById(state.countryID);
             } else {
-                country = W.model.countries.get(W.model.countries.top.id);
+                country = W.model.countries.getObjectById(W.model.countries.top.id);
             }
             addCityAction = new AddOrGetCity(state, country, ""); //why a true here in orginal script?
             m_action.doSubAction(addCityAction);
@@ -555,7 +558,7 @@
                 changedCities.push((updatedCity == "") ? "Empty" : updatedCity);
             });
 
-            var cityIDAssginedName = W.model.cities.get(cityIDAssigned).attributes.name ;
+            var cityIDAssginedName = W.model.cities.getObjectById(cityIDAssigned).attributes.name ;
             cityIDAssginedName = (cityIDAssginedName == "") ? "Empty" : cityIDAssginedName;
             alert("Cities: " + changedCities.join(" ; ") + " updated to " + cityIDAssginedName ); //here move to a count function e.g. x empty, x Leuven
 
@@ -623,7 +626,7 @@
                     log("Default City " + cityIDAssigned + " reset to null");
                     break;
                 case 1:
-                    cityIDAssigned = W.model.streets.get(segments[0].model.attributes.primaryStreetID).cityID;
+                    cityIDAssigned = W.model.streets.getObjectById(segments[0].model.attributes.primaryStreetID).cityID;
                     log("Default City changed to " + cityIDAssigned);
                     break;
                 default:
